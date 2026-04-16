@@ -1,0 +1,6 @@
+# Ignore all uploaded PDF files
+*.pdf
+
+# Ignore all files in uploads directory
+*
+!.gitignore

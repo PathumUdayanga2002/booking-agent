@@ -1,0 +1,67 @@
+# ============================================
+# FastAPI Core and ASGI Server
+# ============================================
+fastapi==0.105.0
+uvicorn[standard]==0.24.0
+
+# ============================================
+# Environment and Configuration
+# ============================================
+python-dotenv
+
+# ============================================
+# MongoDB (Async driver via PyMongo)
+# ============================================
+pymongo>=4.0.0
+motor
+
+# ============================================
+# LangChain and LLM Framework
+# ============================================
+langchain
+langchain-community
+langchain-text-splitters
+langgraph
+
+# ============================================
+# Groq LLM API
+# ============================================
+groq
+
+# ============================================
+# Vector Database - Qdrant
+# ============================================
+qdrant-client
+
+# ============================================
+# Embeddings - HuggingFace Sentence Transformers (compatible versions)
+# ============================================
+torch>=2.0.0,<2.2.0
+transformers>=4.30.0,<4.40.0
+sentence-transformers>=2.2.2
+
+# ============================================
+# Data Validation and Serialization
+# ============================================
+pydantic
+pydantic-settings
+
+# ============================================
+# PDF Processing
+# ============================================
+PyPDF2
+
+# ============================================
+# Text Processing and Utilities
+# ============================================
+requests
+httpx
+PyJWT
+
+# ============================================
+# Development Tools (optional)
+# ============================================
+# black==23.12.0
+# flake8==6.1.0
+# pytest==7.4.3
+# pytest-asyncio==0.21.1
