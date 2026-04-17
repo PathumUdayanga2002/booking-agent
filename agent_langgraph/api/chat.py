@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
+        self.sessions: Dict[str, dict] = {}
 
     async def connect(self, user_id: str, websocket: WebSocket):
         self.active_connections[user_id] = websocket
@@ -74,14 +75,40 @@ async def websocket_chat(websocket: WebSocket, user_id: str, token: str = Query(
 
             state = {
                 "user_id": user_id,
+                "token": token,
                 "user_message": user_message,
                 "intent": "unknown",
-                "conversation_history": [{"role": "user", "content": user_message}],
+                "active_intent": None,
+                "stage": None,
+                "slots": {},
+                "conversation_history": [],
                 "final_response": "",
             }
 
-            result = chat_graph.invoke(state)
+            session = manager.sessions.get(user_id)
+            if session:
+                state["active_intent"] = session.get("active_intent")
+                state["stage"] = session.get("stage")
+                state["slots"] = session.get("slots", {})
+                state["conversation_history"] = session.get("conversation_history", [])
+
+            state["conversation_history"] = [
+                *state.get("conversation_history", []),
+                {"role": "user", "content": user_message},
+            ]
+
+            result = await chat_graph.ainvoke(state)
             response_text = result.get("final_response", "I could not generate a response.")
+
+            manager.sessions[user_id] = {
+                "active_intent": result.get("active_intent"),
+                "stage": result.get("stage"),
+                "slots": result.get("slots", {}),
+                "conversation_history": [
+                    *result.get("conversation_history", []),
+                    {"role": "assistant", "content": response_text},
+                ][-50:],
+            }
 
             await manager.send_personal(
                 user_id,
