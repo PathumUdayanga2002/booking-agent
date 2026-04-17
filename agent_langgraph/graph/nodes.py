@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from graph.state import ChatState
 from services import get_express_client
+from services import VectorStoreService, KNOWLEDGE_BASE_COLLECTION
 
 
 def _extract_guest_count(text: str) -> Optional[int]:
@@ -56,6 +57,96 @@ def _extract_iso_dates(text: str) -> List[str]:
 def _extract_booking_id(text: str) -> Optional[str]:
     match = re.search(r"\b(BKG-[A-Za-z0-9-]{6,}|[a-fA-F0-9]{24})\b", text)
     return match.group(1) if match else None
+
+
+def _is_knowledge_query(text: str) -> bool:
+    normalized = (text or "").lower()
+    if not normalized:
+        return False
+
+    booking_intent_words = [
+        "book",
+        "booking",
+        "reserve",
+        "reschedule",
+        "cancel",
+        "check-in",
+        "check in",
+        "check-out",
+        "check out",
+    ]
+    if any(word in normalized for word in booking_intent_words):
+        return False
+
+    kb_words = [
+        "hotel name",
+        "hotel",
+        "room categories",
+        "room type",
+        "amenities",
+        "facility",
+        "spa",
+        "pool",
+        "beach",
+        "wifi",
+        "restaurant",
+        "policy",
+        "pet",
+        "smoking",
+        "transfer",
+        "location",
+        "contact",
+        "what is",
+        "what are",
+        "tell me about",
+    ]
+    return any(word in normalized for word in kb_words)
+
+
+def _format_knowledge_response(query: str, docs: List[Dict[str, Any]]) -> str:
+    if not docs:
+        return (
+            "I couldn't find that detail in the current hotel knowledge base. "
+            "Please rephrase your question, for example: hotel name, room categories, check-in time, spa, or policies."
+        )
+
+    top_docs = docs[:3]
+    normalized_chunks: List[str] = []
+    for doc in top_docs:
+        raw_text = str(doc.get("text", "") or "")
+        cleaned = re.sub(r"---\s*Page\s*\d+\s*---", " ", raw_text, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if cleaned:
+            normalized_chunks.append(cleaned)
+
+    if not normalized_chunks:
+        return (
+            "I found related knowledge entries but they were empty after processing. "
+            "Please ask your question again with a little more detail."
+        )
+
+    merged = " ".join(normalized_chunks)
+    sentences = re.split(r"(?<=[.!?])\s+", merged)
+    selected: List[str] = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 20:
+            continue
+        selected.append(sentence)
+        if len(selected) == 4:
+            break
+
+    if not selected:
+        selected = [merged[:500].strip()]
+
+    bullet_lines = [f"- {line}" for line in selected]
+    return "\n".join(
+        [
+            f"Here is what I found in our hotel knowledge base for: '{query}'",
+            *bullet_lines,
+            "If you want, I can also answer a more specific follow-up about this topic.",
+        ]
+    )
 
 
 def _calculate_total_price(check_in: str, check_out: str, price_per_night: float) -> float:
@@ -229,7 +320,9 @@ def detect_intent_node(state: ChatState) -> ChatState:
         state["intent"] = active_intent
         return state
 
-    if any(word in message for word in ["book", "reserve", "booking"]):
+    if _is_knowledge_query(message):
+        intent = "knowledge"
+    elif any(word in message for word in ["book", "reserve", "booking"]):
         intent = "book"
     elif any(word in message for word in ["cancel", "cancell"]):
         intent = "cancel"
@@ -264,7 +357,19 @@ async def handle_intent_node(state: ChatState) -> ChatState:
             state["final_response"] = "Please share your booking ID and your new check-in/check-out dates."
             return state
         elif intent == "knowledge":
-            state["final_response"] = "I understood this as a hotel information question. Knowledge retrieval will be added in the next parity slice."
+            try:
+                docs = await VectorStoreService.search(
+                    KNOWLEDGE_BASE_COLLECTION,
+                    message,
+                    limit=8,
+                    score_threshold=0.15,
+                )
+                state["final_response"] = _format_knowledge_response(message, docs)
+            except Exception:
+                state["final_response"] = (
+                    "I understood this as a hotel information question, but the knowledge service is currently unavailable. "
+                    "Please try again shortly."
+                )
         else:
             state["final_response"] = f"I received: {message}"
         return state

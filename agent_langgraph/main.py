@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import health_router, chat_router
 from config import get_logger, settings
+from services.vector_store import init_vector_store
 
 logger = get_logger(__name__)
 
@@ -14,6 +15,11 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("LangGraph Agent API starting")
     logger.info("env=%s host=%s port=%s", settings.FASTAPI_ENV, settings.FASTAPI_HOST, settings.FASTAPI_PORT)
+    try:
+        await init_vector_store()
+        logger.info("Vector store initialized")
+    except Exception as exc:
+        logger.warning("Vector store init failed; knowledge retrieval will be unavailable: %s", exc)
     logger.info("=" * 60)
     yield
     logger.info("LangGraph Agent API shutting down")

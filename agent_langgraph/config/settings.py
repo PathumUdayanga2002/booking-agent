@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     EXPRESS_BACKEND_URL: str = "http://localhost:5000"
     HTTP_TIMEOUT_SECONDS: float = 10.0
 
+    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_API_KEY: str = ""
+    QDRANT_COLLECTION_NAME: str = "hotel_knowledge"
+    EMBEDDINGS_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDINGS_DIMENSION: int = 384
+
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parent.parent / ".env",
         env_file_encoding="utf-8",
