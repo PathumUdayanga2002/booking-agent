@@ -53,6 +53,11 @@ def _extract_iso_dates(text: str) -> List[str]:
     return re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text)
 
 
+def _extract_booking_id(text: str) -> Optional[str]:
+    match = re.search(r"\b(BKG-[A-Za-z0-9-]{6,}|[a-fA-F0-9]{24})\b", text)
+    return match.group(1) if match else None
+
+
 def _calculate_total_price(check_in: str, check_out: str, price_per_night: float) -> float:
     check_in_date = datetime.strptime(check_in, "%Y-%m-%d").date()
     check_out_date = datetime.strptime(check_out, "%Y-%m-%d").date()
@@ -76,6 +81,32 @@ def _is_explicit_confirmation(text: str) -> bool:
     tokens = set(re.findall(r"[a-z]+", normalized))
     confirmation_words = {"yes", "confirm", "confirmed", "correct", "true", "ok", "okay", "sure"}
     return bool(tokens) and len(tokens) <= 3 and any(word in tokens for word in confirmation_words)
+
+
+def _is_valid_booking_identifier(booking_id: str) -> bool:
+    if not isinstance(booking_id, str):
+        return False
+    normalized = booking_id.strip()
+    if not normalized:
+        return False
+
+    placeholder_markers = [
+        "<id",
+        "most recent",
+        "just got cancelled",
+        "cancelled booking",
+        "booking that",
+        "placeholder",
+    ]
+    lowered = normalized.lower()
+    if any(marker in lowered for marker in placeholder_markers):
+        return False
+
+    if re.fullmatch(r"(?i)bkg-[a-z0-9-]{6,}", normalized):
+        return True
+    if re.fullmatch(r"[a-fA-F0-9]{24}", normalized):
+        return True
+    return False
 
 
 def _format_search_rooms_response(arguments: Dict[str, Any], rooms: List[Dict[str, Any]]) -> str:
@@ -114,6 +145,82 @@ def _select_room_from_message(message: str, rooms: List[Dict[str, Any]]) -> Opti
     return None
 
 
+def _format_booking_status_response(result: Dict[str, Any], requested_booking_id: str) -> str:
+    if not isinstance(result, dict):
+        return (
+            f"I retrieved booking `{requested_booking_id}`, but the details were not in the expected format. "
+            "Please try again."
+        )
+
+    booking = result.get("booking", result)
+    if not isinstance(booking, dict):
+        return (
+            f"I couldn't read details for booking `{requested_booking_id}`. "
+            "Please confirm the booking ID and try again."
+        )
+
+    booking_ref = booking.get("bookingId") or booking.get("_id") or requested_booking_id
+    check_in = booking.get("checkIn") or booking.get("check_in") or "N/A"
+    check_out = booking.get("checkOut") or booking.get("check_out") or "N/A"
+    guests = booking.get("guests", "N/A")
+    status = booking.get("status", "N/A")
+    room = booking.get("roomId", {})
+    room_name = booking.get("roomNameSnapshot")
+    room_rate = None
+    if isinstance(room, dict):
+        room_name = room_name or room.get("name")
+        room_rate = room.get("pricePerNight")
+    room_name = room_name or "N/A"
+
+    lines = [
+        f"I found booking `{booking_ref}`. Here are the current details:",
+        f"✓ Current Check-in: {check_in}",
+        f"✓ Current Check-out: {check_out}",
+        f"✓ Current Room: {room_name}",
+        f"✓ Current Guests: {guests}",
+        f"✓ Current Status: {status}",
+    ]
+    if room_rate is not None:
+        lines.append(f"✓ Room Rate: ${room_rate}/night")
+    return "\n".join(lines)
+
+
+def _format_reschedule_response(result: Dict[str, Any], arguments: Dict[str, Any]) -> str:
+    booking_id = arguments.get("booking_id", "N/A")
+    new_check_in = arguments.get("new_check_in", "N/A")
+    new_check_out = arguments.get("new_check_out", "N/A")
+
+    if not isinstance(result, dict):
+        return (
+            f"I couldn't confirm the reschedule for booking `{booking_id}` because the server response was invalid. "
+            "Please check your booking status and try again."
+        )
+
+    if result.get("success") is not True:
+        error_message = result.get("message") or result.get("error") or "Unknown error"
+        return (
+            f"I couldn't reschedule booking `{booking_id}`. "
+            f"Reason: {error_message}. Please verify the dates/booking ID and try again."
+        )
+
+    booking = result.get("booking", {})
+    if not isinstance(booking, dict):
+        booking = {}
+    old_check_in = booking.get("oldCheckIn") or booking.get("previousCheckIn")
+    old_check_out = booking.get("oldCheckOut") or booking.get("previousCheckOut")
+    updated_check_in = booking.get("checkIn") or booking.get("check_out") or new_check_in
+    updated_check_out = booking.get("checkOut") or booking.get("check_out") or new_check_out
+    updated_booking_ref = booking.get("bookingId") or booking.get("_id") or booking_id
+
+    old_range = f"{old_check_in} to {old_check_out}" if old_check_in and old_check_out else "previous dates"
+    return (
+        f"✓ Your booking `{updated_booking_ref}` has been successfully rescheduled.\n"
+        f"- Previous dates: {old_range}\n"
+        f"- New dates: {updated_check_in} to {updated_check_out}\n"
+        "The booking record has been updated in the system."
+    )
+
+
 def detect_intent_node(state: ChatState) -> ChatState:
     message = state.get("user_message", "").lower()
     active_intent = state.get("active_intent")
@@ -145,14 +252,177 @@ async def handle_intent_node(state: ChatState) -> ChatState:
 
     if intent != "book" and not state.get("active_intent"):
         if intent == "cancel":
+            state["active_intent"] = "cancel"
+            state["stage"] = "need_booking_id"
+            state["slots"] = {}
             state["final_response"] = "Please share your booking ID and I will help you cancel it safely."
+            return state
         elif intent == "reschedule":
+            state["active_intent"] = "reschedule"
+            state["stage"] = "need_booking_id"
+            state["slots"] = {}
             state["final_response"] = "Please share your booking ID and your new check-in/check-out dates."
+            return state
         elif intent == "knowledge":
             state["final_response"] = "I understood this as a hotel information question. Knowledge retrieval will be added in the next parity slice."
         else:
             state["final_response"] = f"I received: {message}"
         return state
+
+    if state.get("active_intent") == "cancel":
+        client = await get_express_client()
+        stage = state.get("stage")
+        if stage == "need_booking_id":
+            booking_id = _extract_booking_id(message) or message.strip()
+            if not _is_valid_booking_identifier(booking_id):
+                state["final_response"] = "Please share your booking ID (example: BKG-ABC123 or a 24-char booking ID)."
+                return state
+
+            slots["booking_id"] = booking_id
+            result = await client.get_booking(booking_id, state["token"])
+            slots["booking"] = result
+            state["slots"] = slots
+            state["stage"] = "confirm_cancel"
+            state["final_response"] = f"{_format_booking_status_response(result, booking_id)}\n\nDo you want me to cancel this booking now?"
+            return state
+
+        if stage == "confirm_cancel":
+            if _is_negative_confirmation(message):
+                state["active_intent"] = None
+                state["stage"] = None
+                state["slots"] = {}
+                state["final_response"] = "Understood. I will keep your booking unchanged."
+                return state
+
+            if not _is_explicit_confirmation(message):
+                state["final_response"] = "Please reply with 'yes' to confirm cancellation, or 'no' to keep this booking."
+                return state
+
+            booking_id = slots.get("booking_id", "")
+            result = await client.cancel_booking(
+                booking_id=booking_id,
+                token=state["token"],
+                reason="Cancelled via LangGraph assistant",
+            )
+            booking_ref = (
+                result.get("booking", {}).get("bookingId")
+                or result.get("booking", {}).get("id")
+                or booking_id
+            )
+            state["active_intent"] = None
+            state["stage"] = None
+            state["slots"] = {}
+            state["final_response"] = f"Your booking {booking_ref} has been cancelled successfully."
+            return state
+
+    if state.get("active_intent") == "reschedule":
+        client = await get_express_client()
+        stage = state.get("stage")
+
+        if stage == "need_booking_id":
+            booking_id = _extract_booking_id(message) or message.strip()
+            if not _is_valid_booking_identifier(booking_id):
+                state["final_response"] = "Please share your booking ID first (example: BKG-ABC123)."
+                return state
+
+            slots["booking_id"] = booking_id
+            result = await client.get_booking(booking_id, state["token"])
+            slots["booking"] = result
+            state["slots"] = slots
+            state["stage"] = "collect_reschedule_changes"
+            state["final_response"] = (
+                f"{_format_booking_status_response(result, booking_id)}\n\n"
+                "Please provide the new check-in and check-out dates. "
+                "If you also want to update guest count/name/email/phone, include them in the same message."
+            )
+            return state
+
+        if stage == "collect_reschedule_changes":
+            iso_dates = _extract_iso_dates(message)
+            if len(iso_dates) >= 2:
+                slots["new_check_in"] = iso_dates[0]
+                slots["new_check_out"] = iso_dates[1]
+
+            guest_count = _extract_guest_count(message)
+            if guest_count is not None:
+                slots["new_guests"] = guest_count
+
+            name = _extract_name(message)
+            email = _extract_email(message)
+            phone = _extract_phone(message)
+            if name:
+                slots["new_guest_name"] = name
+            if email:
+                slots["new_guest_email"] = email
+            if phone:
+                slots["new_guest_phone"] = phone
+
+            if not slots.get("new_check_in") or not slots.get("new_check_out"):
+                state["final_response"] = "Please provide the new check-in and check-out dates in YYYY-MM-DD format."
+                state["slots"] = slots
+                return state
+
+            optional_lines = []
+            if slots.get("new_guests") is not None:
+                optional_lines.append(f"- New guests: {slots['new_guests']}")
+            if slots.get("new_guest_name"):
+                optional_lines.append(f"- New guest name: {slots['new_guest_name']}")
+            if slots.get("new_guest_email"):
+                optional_lines.append(f"- New guest email: {slots['new_guest_email']}")
+            if slots.get("new_guest_phone"):
+                optional_lines.append(f"- New guest phone: {slots['new_guest_phone']}")
+            optional_text = "\n".join(optional_lines)
+            if optional_text:
+                optional_text = f"\n{optional_text}"
+
+            state["stage"] = "confirm_reschedule"
+            state["slots"] = slots
+            state["final_response"] = (
+                "Please confirm your reschedule request:\n"
+                f"- Booking ID: {slots['booking_id']}\n"
+                f"- New check-in: {slots['new_check_in']}\n"
+                f"- New check-out: {slots['new_check_out']}"
+                f"{optional_text}\n"
+                "Reply 'yes' to confirm or 'no' to cancel this update."
+            )
+            return state
+
+        if stage == "confirm_reschedule":
+            if _is_negative_confirmation(message):
+                state["active_intent"] = None
+                state["stage"] = None
+                state["slots"] = {}
+                state["final_response"] = "No changes were made. Your booking remains unchanged."
+                return state
+
+            if not _is_explicit_confirmation(message):
+                state["final_response"] = "Please reply with 'yes' to confirm reschedule, or 'no' to cancel."
+                return state
+
+            result = await client.reschedule_booking(
+                booking_id=slots["booking_id"],
+                new_check_in=slots["new_check_in"],
+                new_check_out=slots["new_check_out"],
+                token=state["token"],
+                new_guests=slots.get("new_guests"),
+                new_guest_name=slots.get("new_guest_name"),
+                new_guest_email=slots.get("new_guest_email"),
+                new_guest_phone=slots.get("new_guest_phone"),
+            )
+
+            response = _format_reschedule_response(
+                result,
+                {
+                    "booking_id": slots["booking_id"],
+                    "new_check_in": slots["new_check_in"],
+                    "new_check_out": slots["new_check_out"],
+                },
+            )
+            state["active_intent"] = None
+            state["stage"] = None
+            state["slots"] = {}
+            state["final_response"] = response
+            return state
 
     if not state.get("active_intent"):
         state["active_intent"] = "book"

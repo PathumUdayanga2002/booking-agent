@@ -3,7 +3,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
 from config import get_logger
 from graph import build_chat_graph
-from services import verify_token
+from services import verify_token, get_storage_service
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -46,6 +46,22 @@ async def websocket_chat(websocket: WebSocket, user_id: str, token: str = Query(
 
     await websocket.accept()
     await manager.connect(user_id, websocket)
+
+    storage = get_storage_service()
+    history_messages = await storage.get_history(user_id=user_id, limit=50)
+    manager.sessions[user_id] = {
+        "active_intent": None,
+        "stage": None,
+        "slots": {},
+        "conversation_history": [
+            {
+                "role": str(msg.get("role", "assistant")),
+                "content": str(msg.get("content", "")),
+            }
+            for msg in history_messages
+            if msg.get("content")
+        ][-50:],
+    }
 
     await manager.send_personal(
         user_id,
@@ -97,6 +113,8 @@ async def websocket_chat(websocket: WebSocket, user_id: str, token: str = Query(
                 {"role": "user", "content": user_message},
             ]
 
+            await storage.save_message(user_id=user_id, role="user", content=user_message)
+
             result = await chat_graph.ainvoke(state)
             response_text = result.get("final_response", "I could not generate a response.")
 
@@ -109,6 +127,8 @@ async def websocket_chat(websocket: WebSocket, user_id: str, token: str = Query(
                     {"role": "assistant", "content": response_text},
                 ][-50:],
             }
+
+            await storage.save_message(user_id=user_id, role="assistant", content=response_text)
 
             await manager.send_personal(
                 user_id,
