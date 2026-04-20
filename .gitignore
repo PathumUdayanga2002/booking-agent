@@ -37,3 +37,11 @@ agent/**/*.pyc
 agent/.env
 agent/.env.local
 agent/.env.development
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfvars
+**/*.auto.tfvars
+**/crash.log

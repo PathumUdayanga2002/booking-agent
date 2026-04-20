@@ -1,0 +1,15 @@
+aws_region = "us-east-1"
+
+project_name = "booking-platform"
+environment  = "dev"
+
+vpc_cidr           = "10.20.0.0/16"
+az_count           = 2
+enable_nat_gateway = false
+
+# Optional explicit bucket name.
+# rag_bucket_name = "booking-platform-dev-rag-123456789012"
+
+tags = {
+  Owner = "platform-team"
+}
