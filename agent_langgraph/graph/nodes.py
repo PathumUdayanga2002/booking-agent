@@ -320,14 +320,21 @@ def detect_intent_node(state: ChatState) -> ChatState:
         state["intent"] = active_intent
         return state
 
-    if _is_knowledge_query(message):
+    # Prioritize destructive/modify intents over generic booking keywords.
+    # Messages like "I want to reschedule my booking" contain both words,
+    # so reschedule must win before "book/booking" checks.
+    if any(
+        word in message
+        for word in ["cancel", "cancell", "reschedule", "reshedule", "reshedle", "change booking", "modify"]
+    ):
+        if any(word in message for word in ["cancel", "cancell"]):
+            intent = "cancel"
+        else:
+            intent = "reschedule"
+    elif _is_knowledge_query(message):
         intent = "knowledge"
     elif any(word in message for word in ["book", "reserve", "booking"]):
         intent = "book"
-    elif any(word in message for word in ["cancel", "cancell"]):
-        intent = "cancel"
-    elif any(word in message for word in ["reschedule", "change", "modify"]):
-        intent = "reschedule"
     elif any(word in message for word in ["hotel", "room", "amenities", "contact", "policy"]):
         intent = "knowledge"
     else:
