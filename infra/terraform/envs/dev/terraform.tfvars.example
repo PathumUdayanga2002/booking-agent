@@ -7,6 +7,34 @@ vpc_cidr           = "10.20.0.0/16"
 az_count           = 2
 enable_nat_gateway = false
 
+# Enable this after budget review. Interface endpoints incur hourly cost per AZ.
+enable_vpc_endpoints       = false
+enable_s3_gateway_endpoint = true
+
+# Interface endpoint service short names.
+# interface_endpoint_services = ["ecr.api", "ecr.dkr", "ssm", "ec2messages", "ssmmessages", "logs"]
+
+control_plane_instance_type = "t3.small"
+worker_instance_type        = "t3.small"
+
+control_plane_desired = 1
+control_plane_min     = 1
+control_plane_max     = 1
+
+worker_desired = 2
+worker_min     = 1
+worker_max     = 3
+
+# Example: allow admin network access to Kubernetes API server.
+# kube_api_ingress_cidrs = ["203.0.113.10/32"]
+
+# Example: allow external NodePort access (usually keep empty and route via ingress/NLB).
+# nodeport_ingress_cidrs = ["203.0.113.10/32"]
+
+cluster_name           = "booking-dev"
+pod_cidr               = "10.244.0.0/16"
+control_plane_endpoint = "control-plane.internal"
+
 # Optional explicit bucket name.
 # rag_bucket_name = "booking-platform-dev-rag-123456789012"
 

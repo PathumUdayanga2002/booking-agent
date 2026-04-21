@@ -6,6 +6,7 @@ This directory contains AWS infrastructure as code for the booking platform.
 
 - `bootstrap/state` - creates remote Terraform state resources (S3 + DynamoDB lock table)
 - `modules/network` - VPC, subnets, routing, and optional NAT
+- `modules/security` - IAM roles/profiles and least-privilege policies for EC2 node groups
 - `modules/storage` - S3 bucket for RAG source documents
 - `envs/dev` - development environment composition
 - `envs/staging` - staging environment composition (to be implemented)
