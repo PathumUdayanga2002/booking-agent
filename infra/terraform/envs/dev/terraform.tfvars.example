@@ -31,6 +31,9 @@ worker_max     = 3
 # Example: allow external NodePort access (usually keep empty and route via ingress/NLB).
 # nodeport_ingress_cidrs = ["203.0.113.10/32"]
 
+# Preferred production-style hardening: allow NodePort traffic only from NLB security group.
+# ingress_nlb_security_group_id = "sg-0123456789abcdef0"
+
 cluster_name           = "booking-dev"
 pod_cidr               = "10.244.0.0/16"
 control_plane_endpoint = "control-plane.internal"

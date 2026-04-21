@@ -126,6 +126,16 @@ resource "aws_vpc_security_group_ingress_rule" "worker_nodeport" {
   ip_protocol       = "tcp"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "worker_nodeport_from_nlb_sg" {
+  count = var.ingress_nlb_security_group_id != null ? 1 : 0
+
+  security_group_id            = aws_security_group.worker.id
+  referenced_security_group_id = var.ingress_nlb_security_group_id
+  from_port                    = 30000
+  to_port                      = 32767
+  ip_protocol                  = "tcp"
+}
+
 resource "aws_vpc_security_group_ingress_rule" "worker_internal_nodeport" {
   security_group_id = aws_security_group.worker.id
   cidr_ipv4         = var.vpc_cidr

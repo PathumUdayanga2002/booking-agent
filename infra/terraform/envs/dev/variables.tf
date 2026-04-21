@@ -137,6 +137,12 @@ variable "nodeport_ingress_cidrs" {
   default     = []
 }
 
+variable "ingress_nlb_security_group_id" {
+  description = "Optional ingress NLB security group ID allowed to reach worker NodePort"
+  type        = string
+  default     = null
+}
+
 variable "cluster_name" {
   description = "Kubernetes cluster name used during bootstrap"
   type        = string

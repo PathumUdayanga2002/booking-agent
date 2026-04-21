@@ -106,6 +106,12 @@ variable "nodeport_ingress_cidrs" {
   default     = []
 }
 
+variable "ingress_nlb_security_group_id" {
+  description = "Optional security group ID of ingress NLB allowed to reach worker NodePort range"
+  type        = string
+  default     = null
+}
+
 variable "control_plane_user_data" {
   description = "User data script for control-plane nodes"
   type        = string

@@ -82,8 +82,9 @@ module "compute" {
   worker_min     = var.worker_min
   worker_max     = var.worker_max
 
-  kube_api_ingress_cidrs = var.kube_api_ingress_cidrs
-  nodeport_ingress_cidrs = var.nodeport_ingress_cidrs
+  kube_api_ingress_cidrs        = var.kube_api_ingress_cidrs
+  nodeport_ingress_cidrs        = var.nodeport_ingress_cidrs
+  ingress_nlb_security_group_id = var.ingress_nlb_security_group_id
 
   control_plane_user_data = local.control_plane_user_data
   worker_user_data        = local.worker_user_data
