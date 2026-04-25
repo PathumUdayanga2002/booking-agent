@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-app-config
+  namespace: booking-app
+data:
+  NODE_ENV: "production"
+  FASTAPI_ENV: "production"
+  LOG_LEVEL: "INFO"
+  FRONTEND_ORIGIN: "https://app.booking.local"
+  EXPRESS_BACKEND_URL: "http://backend:5000"
+  NEXT_PUBLIC_API_BASE_URL: "https://app.booking.local/api"
+  NEXT_PUBLIC_AGENT_API_BASE_URL: "https://agent.booking.local/api"
+  NEXT_PUBLIC_AGENT_WS_URL: "wss://agent.booking.local/api/chat/ws"
+  QDRANT_URL: "http://qdrant:6333"
+  QDRANT_COLLECTION_NAME: "hotel_knowledge"

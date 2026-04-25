@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespaces/namespace.yaml
+  - namespaces/configmap.yaml
+  - namespaces/secret.example.yaml
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - backend/deployment.yaml
+  - backend/service.yaml
+  - backend/hpa.yaml
+  - agent/deployment.yaml
+  - agent/service.yaml
+  - agent-langgraph/deployment.yaml
+  - agent-langgraph/service.yaml
+  - agent-langgraph/hpa.yaml
+  - qdrant/statefulset.yaml
+  - qdrant/service.yaml
+  - ingress/ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: booking-platform
+    includeSelectors: false

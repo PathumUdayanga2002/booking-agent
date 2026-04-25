@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-langgraph
+  namespace: booking-app
+  labels:
+    app.kubernetes.io/name: agent-langgraph
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-langgraph
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-langgraph
+    spec:
+      containers:
+        - name: agent-langgraph
+          image: ghcr.io/replace-me/booking-agent-langgraph:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+              name: http
+          env:
+            - name: FASTAPI_HOST
+              value: "0.0.0.0"
+            - name: FASTAPI_PORT
+              value: "8001"
+            - name: FASTAPI_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: FASTAPI_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: LOG_LEVEL
+            - name: EXPRESS_BACKEND_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: EXPRESS_BACKEND_URL
+            - name: FRONTEND_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: FRONTEND_ORIGIN
+            - name: QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: QDRANT_URL
+            - name: QDRANT_COLLECTION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: booking-app-config
+                  key: QDRANT_COLLECTION_NAME
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: booking-app-secrets
+                  key: JWT_SECRET_KEY
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: booking-app-secrets
+                  key: GROQ_API_KEY
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: booking-app-secrets
+                  key: MONGODB_URI
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi

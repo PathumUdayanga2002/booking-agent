@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-langgraph
+  namespace: booking-app
+spec:
+  selector:
+    app.kubernetes.io/name: agent-langgraph
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http
+  type: ClusterIP

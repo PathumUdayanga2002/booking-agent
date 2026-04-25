@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-app-config
+  namespace: booking-app
+data:
+  FRONTEND_ORIGIN: "http://localhost:3000"
+  NEXT_PUBLIC_API_BASE_URL: "http://app.booking.local/api"
+  NEXT_PUBLIC_AGENT_API_BASE_URL: "http://agent.booking.local/api"
+  NEXT_PUBLIC_AGENT_WS_URL: "ws://agent.booking.local/api/chat/ws"
